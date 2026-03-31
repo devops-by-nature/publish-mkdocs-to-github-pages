@@ -1,0 +1,54 @@
+name: Deploy MkDocs Site
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**/**'
+  release:
+    types: [published]
+
+permissions:
+  pages: write      # to deploy to Pages
+  id-token: write   # to verify the deployment originates from an appropriate source
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Determine docs version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "docs_version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "docs_version=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build docs
+        working-directory: docs
+        env:
+          DOCS_VERSION: ${{ steps.version.outputs.docs_version }}
+        run: docker compose run build
+
+      - name: Create tar archive of site
+        working-directory: docs
+        run: |
+          tar -cf site.tar -C site .
+
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./docs/site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
